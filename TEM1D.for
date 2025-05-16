@@ -1,7 +1,7 @@
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 C
 C
-C   S U B R O U T I N E    T E M 1 D P R O G
+C   S U B R O U T I N E    T E M 1 D
 C
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 C
@@ -22,7 +22,8 @@ CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
      # ISHTX1i,ISHTX2i,ISHRX1i,ISHRX2i,HTX1i,HTX2i,HRX1i,HRX2i,
      # NPOLYi,XPOLYi,YPOLYi,X0RXi,Y0RXi,
      # IRESPTYPEi,IDERIVi,IREPi,IWCONVi,NFILTi,REPFREQi,FILTFREQi,
-     # NWAVEi,TWAVEi,AWAVEi)
+     # NWAVEi,TWAVEi,AWAVEi,
+     # NtOUT,TIMESOUT,RESPOUT,DRESPOUT)
 C ----------
       IMPLICIT INTEGER*4 (I-N)
       IMPLICIT REAL*8 (A-H,O-Z)
@@ -44,7 +45,7 @@ C ----------
       REAL*8 FILTFREQi(16)
       REAL*8 DRHI(N_ARR),DRLO(N_ARR),RESPOUTANA(N_ARR)
       REAL*8 TIMESOUT(N_ARR),RESPOUT(N_ARR),DRESPOUT(N_ARR,N_ARR)
-      REAL*8 DSTPSP(N_ARR,N_ARR),RESPOUT0(N_ARR)
+      REAL*8 DSTPSP(N_ARR,N_ARR)
 C ----------
       REAL*8 ZEROPOS
       EXTERNAL ZEROPOS
@@ -54,21 +55,11 @@ C ----------
 C ----------
 
 C=====================================================================
-C --- HARDWIRING OUTPUT OPTIONS INCLUDING NUMERICAL DERIVATIVES
+C --- HARDWIRING OUTPUT OPTION
 C=====================================================================
 C...............................................................................
       IWRI = 0
-C --- IWRI = [1 | 0] : [Write to output | Do not write to output].
-C...............................................................................
-
-C...............................................................................
-      IWRITE21 = 1
-C --- IWRITE21 = [1 | 0] : [Write to fil, unit 21 | Do not write].
-C...............................................................................
-
-C...............................................................................
-C --- INUMDERIV = [1 | 0] : [2-sided numerical derivatives | Analytic derivatives].
-      INUMDERIV = 0
+C --- IWRI = [1 | 0] : [Write to default output | Do not write to output].
 C...............................................................................
 
 C...............................................................................
@@ -380,344 +371,34 @@ C....................................................................
 C --- ENDIF: POLYGONAL TX LOOP
 C=====================================================================================
 
-
 C===================================================================
 C --- CALL THE RESPONSE ROUTINE
 C===================================================================
       T1 = STIMER(DUMMY)
 
       IF (IMODIP.EQ.0 .AND. NPOLY.EQ.0) THEN
-      WRITE (*,*) 'TEM1DPROG: BEFORE CALLING TEMRESP'
+C      WRITE (*,*) 'TEM1DPROG: BEFORE CALLING TEMRESP'
         CALL TEMRESP (NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-      WRITE (*,*) 'TEM1DPROG: AFTER CALLING TEMRESP'
+C      WRITE (*,*) 'TEM1DPROG: AFTER CALLING TEMRESP'
       ENDIF
 
       IF (IMODIP.EQ.1 .AND. NPOLY.EQ.0) THEN
-      WRITE (*,*) 'TEM1DPROG: BEFORE CALLING TEMRESPIP'
+C      WRITE (*,*) 'TEM1DPROG: BEFORE CALLING TEMRESPIP'
         CALL TEMRESPIP  (NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-      WRITE (*,*) 'TEM1DPROG: AFTER CALLING TEMRESPIP'
+C      WRITE (*,*) 'TEM1DPROG: AFTER CALLING TEMRESPIP'
       ENDIF
 
       IF (IMODIP.EQ.0 .AND. NPOLY.GT.0) THEN
-      WRITE (*,*) 'TEM1DPROG: BEFORE CALLING TEMRESPPOLY'
+C      WRITE (*,*) 'TEM1DPROG: BEFORE CALLING TEMRESPPOLY'
         CALL TEMRESPPOLY (NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-      WRITE (*,*) 'TEM1DPROG: AFTER CALLING TEMRESPPOLY'
+C      WRITE (*,*) 'TEM1DPROG: AFTER CALLING TEMRESPPOLY'
       ENDIF
 
       IF (IMODIP.EQ.1 .AND. NPOLY.GT.0) THEN
-      WRITE (*,*) 'TEM1DPROG: BEFORE CALLING TEMRESPPOLYIP'
+C      WRITE (*,*) 'TEM1DPROG: BEFORE CALLING TEMRESPPOLYIP'
         CALL TEMRESPPOLYIP (NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-      WRITE (*,*) 'TEM1DPROG: AFTER CALLING TEMRESPPOLYIPP'
+C      WRITE (*,*) 'TEM1DPROG: AFTER CALLING TEMRESPPOLYIPP'
       ENDIF
-
-C....................................................................
-      T2 = STIMER(DUMMY)
-      IF (IWRITE21.EQ.1) THEN
-      WRITE (21,*) 'CALCULATION TIME: ',T2-T1
-      ENDIF
-C....................................................................
-
-C--------------------------------------------------------------------------------
-C --- SAVE RESPONSE (MIGHT BE MODIFIED BELOW)
-C--------------------------------------------------------------------------------
-      DO I = 1,NTOUT
-      RESPOUT0(I) = RESPOUT(I)
-      ENDDO
-
-C********************************************************************
-C===================================================================
-C --- CALCULATE THE NUMERICAL DERIVAITVES
-C===================================================================
-C********************************************************************
-      IF (INUMDERIV.EQ.1) THEN
-
-C------------------------------------------
-C --- DERIVATIVES WRT CONDUCTIVITIES
-C------------------------------------------
-      DO J=1,NLAY
-      SIG0 = SIGN(J)
-      SIGN(J) = SIG0 * 1.05D0
-      RHON(J)=1.D0/SIGN(J)
-      CALL TEMRESP (NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-
-        DO I = 1,NTOUT
-        DRHI(I) = RESPOUT(I)
-        ENDDO
-
-      SIGN(J) = SIG0 * 0.95D0
-      RHON(J)=1.D0/SIGN(J)
-
-      CALL TEMRESP (NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-
-        DO I = 1,NTOUT
-        DRLO(I) = RESPOUT(I)
-        ENDDO
-
-      SIGN(J) = SIG0
-
-        DO I = 1,NTOUT
-        DRESPOUT(I,J) = (DRHI(I)-DRLO(I)) / (0.1D0*SIG0)
-        ENDDO
-
-      ENDDO
-
-      WRITE (*,*) 'NUMDERIV: COND DONE'
-
-C------------------------------------------
-C --- DERIVATIVES WRT THICKNESSES
-C------------------------------------------
-      IF (IMLM.EQ.0)  THEN
-
-      DO J=1,NLAY-1
-
-      THK0 = THKN(J)
-      THKN(J) = THK0 * 1.05D0
-
-        DEPN(1) = 0.D0
-        DO K=1,NLAY-1
-        DEPN(K+1) = DEPN(K)+THKN(K)
-        ENDDO
-
-      CALL TEMRESP(NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-
-        DO I = 1,NTOUT
-        DRHI(I) = RESPOUT(I)
-        ENDDO
-
-      THKN(J) = THK0 * 0.95D0
-
-        DEPN(1) = 0.D0
-        DO K=1,NLAY-1
-        DEPN(K+1) = DEPN(K)+THKN(K)
-        ENDDO
-
-      CALL TEMRESP(NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-
-        DO I = 1,NTOUT
-        DRLO(I) = RESPOUT(I)
-        ENDDO
-
-      THKN(J) = THK0
-
-        DEPN(1) = 0.D0
-        DO K=1,NLAY-1
-        DEPN(K+1) = DEPN(K)+THKN(K)
-        ENDDO
-
-      DO I = 1,NTOUT
-      DRESPOUT(I,NLAY+J) = (DRHI(I)-DRLO(I)) / (0.1D0*THK0)
-      ENDDO
-
-      ENDDO
-
-      ENDIF
-
-      WRITE (*,*) 'NUMDERIV: THKS DONE'
-
-C---------------------------------------------------------------------
-C --- DERIVATIVES WRT HTX
-C --- PERTURBATION MUST BE ADDITIVE TO MAINTAIN CONFIGURATION.
-C --- ALL HTX/HRX PARAMETERSS MUST BE PERTURBED.
-C --- THE ISHTX1 TYPE PARAMETERS WILL TAKE CARE OF THE REST.
-C---------------------------------------------------------------------
-      HTX10 = HTX1
-      HRX10 = HRX1
-      HTX20 = HTX2
-      HRX20 = HRX2
-      DELH = 0.1D0*HTX1
-
-      HTX1 = HTX10 + DELH
-      HRX1 = HRX10 + DELH
-      HTX2 = HTX20 + DELH
-      HRX2 = HRX20 + DELH
-
-      CALL TEMRESP(NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-
-        DO I = 1,NTOUT
-        DRHI(I) = RESPOUT(I)
-        ENDDO
-
-      HTX1 = HTX10 - DELH
-      HRX1 = HRX10 - DELH
-      HTX2 = HTX20 - DELH
-      HRX2 = HRX20 - DELH
-
-      CALL TEMRESP(NTOUT,TIMESOUT,RESPOUT,DRESPOUT)
-
-        DO I = 1,NTOUT
-        DRLO(I) = RESPOUT(I)
-        ENDDO
-
-      HTX1 = HTX10
-      HRX1 = HRX10
-      HTX2 = HTX20
-      HRX2 = HRX20
-
-      WRITE (*,*) 'NUMDERIV: HTX DONE - NOT YET STORED'
-
-      IF (IMLM.EQ.1) THEN
-
-      DO I = 1,NTOUT
-      DRESPOUT(I,NLAY+1) = (DRHI(I)-DRLO(I)) / (2.D0*DELH)
-      ENDDO
-
-      ELSEIF (IMLM.EQ.0) THEN
-
-      DO I = 1,NTOUT
-      DRESPOUT(I,2*NLAY) = (DRHI(I)-DRLO(I)) / (2.D0*DELH)
-      ENDDO
-
-      ENDIF
-
-      WRITE (*,*) 'NUMDERIV: HTX DONE'
-
-      IDERIV = IDERIVOLD
-
-      ENDIF
-C --- ENDIF: NUMERICAL DERIVATIVES ARE DONE 
-
-C===========================================================================
-C --- OUTPUT FROM THE PROGRAM
-C --- THE ONLY OUTPUT FROM THE PROGRAM ITSELF IS RESPONSES AND DERIVATIVES
-C===========================================================================
-
-C***************************************************************
-C============================================================
-C --- WRITE SETTINGS TO OUTPUT
-C============================================================
-C***************************************************************
-      IF (IWRITE21.EQ.1) THEN
-      
-      WRITE (21,'(A)') ' '
-      WRITE (21,'(A)') ' '
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') '  >> THE MODEL BLOCK <<'
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') ' IMLM, NLAY:'
-      WRITE (21,'(3X,I1,3X,I2)')    IMLM, NLAY
-      WRITE (21,'(A)') ' RHON, DEPN:'
-      WRITE (21,3002)  (RHON(J),J=1,NLAY)
-      WRITE (21,3002)  (DEPN(J),J=1,NLAY)
-      WRITE (21,'(A)') '=============================================='
-
-C***************************************************************
-      WRITE (21,'(A)') ' '
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') '  >> THE INSTRUMENT BLOCK <<'
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') ' ICEN, IZEROPOS:'
-      WRITE (21,'(3X,I1,2X,4X,I1)')    ICEN, IZEROPOS
-      WRITE (21,'(A)') ' TXAREA ,  TXRAD ,   RTXRX , EQRXPOS:'
-      WRITE (21,'(4(1X,F7.3,1X))')
-     #            TXAREA,TXRAD,RTXRX,EQRXPOS
-      WRITE (21,'(A)') '  HTX1 , HTX2 , HRX1 , HRX2:'
-      WRITE (21,'(4(1X,F5.2,1X))') HTX1,HTX2,HRX1,HRX2
-      WRITE (21,'(A)') ' ISHTX1, ISHTX2, ISHRX1, ISHRX2:'
-      WRITE (21,'(4(3X,I2,3X))') ISHTX1, ISHTX2, ISHRX1, ISHRX2
-      WRITE (21,'(A)') '=============================================='
-
-C***************************************************************
-      IF (IMODIP.GT.0) THEN
-      WRITE (21,'(A)') ' '
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') '  >> THE IP BLOCK <<'
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') ' CHARGEABILITIES:'
-      WRITE (21,3002)    (CHAIP(J),J=1,NLAY)
-      WRITE (21,'(A)') ' TIME CONSTANTS:'
-      WRITE (21,3002)    (TAUIP(J),J=1,NLAY)
-      WRITE (21,'(A)') ' POWERS :'
-      WRITE (21,3002)    (POWIP(J),J=1,NLAY)
-      WRITE (21,'(A)') '=============================================='
-      ENDIF
-C***************************************************************
-      IF (NPOLY.GT.0) THEN
-      WRITE (21,'(A)') ' '
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') '  >> THE POLYGONAL TX LOOP BLOCK <<'
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') ' NPOLY:'
-      WRITE (21,3000)    NPOLY
-      WRITE (21,'(A)') ' X-COORDINATES OF APICES:'
-      WRITE (21,3002)    (XPOLY(J),J=1,NPOLY)
-      WRITE (21,'(A)') ' Y-COORDINATES OF APICES:'
-      WRITE (21,3002)    (YPOLY(J),J=1,NPOLY)
-      WRITE (21,'(A)') ' DIPOLEFAC & X-, Y-, AND Z-COORDINATES OF RX:'
-      WRITE (21,3002)    DIPOLEFAC,X0RX,Y0RX,Z0RX
-      WRITE (21,'(A)') '=============================================='
-      ENDIF
-C***************************************************************
-      WRITE (21,'(A)') ' '
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') '  >> THE RESPONSE BLOCK <<'
-      WRITE (21,'(A)') '=============================================='
-      WRITE (21,'(A)') ' IRESPTYPE,IDERIV,IREP,IWCONV,NFILT:'
-      WRITE (21,3000)    IRESPTYPE,IDERIV,IREP,IWCONV,NFILT
-      WRITE (21,'(A)') ' REPFREQ,(FILTFREQ(J),J=1,NFILT):'
-      WRITE (21,3002)    REPFREQ,(FILTFREQ(J),J=1,NFILT)
-      WRITE (21,'(A)') '=============================================='
-
- 3000 FORMAT (12(2X,I3))
- 3001 FORMAT (30(2X,1PE11.4))
- 3002 FORMAT (30(2X,F10.2))
-C***************************************************************
-
-      WRITE (21,'(A)') ' '
-      WRITE (21,'(A)') ' '
-      WRITE (21,'(A)')
-     # '=============================================================='
-      WRITE (21,'(A)') ' NUMBER   TIME       RESP         DERIV'
-      WRITE (21,'(A)')
-     # '=============================================================='
-
-      IF (IDERIV.EQ.0) THEN
-      DO I = 1,NTOUT
-        WRITE (21,3003) I,TIMESOUT(I),RESPOUT0(I)
-      ENDDO
-      ENDIF
-
- 3003 FORMAT (I3,20(2X,1PE11.4))
-
-      IF (IDERIV.GT.0) THEN
-
-        IF (IMLM.EQ.1) THEN
-          NPARM = NLAY+1
-        ELSEIF (IMLM.EQ.0) THEN
-          NPARM = NLAY + (NLAY-1) + 1
-        ENDIF
-
-      DO I = 1,NTOUT
-        WRITE (21,3003)
-     #   I,TIMESOUT(I),RESPOUT0(I),(DRESPOUT(I,J),J=1,NPARM)
-      ENDDO
-
-      WRITE (21,'(A)')
-     # '=============================================================='
-
-      ENDIF
-
-      ENDIF
-C --- ENDIF: WRITING TO UNIT 21
-
-C========================================================================
-C --- WRITE TO OUTPUT FILE: FORWRITE, IN SIMPLE FORMAT, UNIT=8
-C========================================================================
-      WRITE (*,*) 'WRITING RESPONSES TO FORWRITE'
-
-      WRITE (8,3004) (TIMESOUT(I),I=1,NTOUT)
-      WRITE (8,3004) (RESPOUT0(I),I=1,NTOUT)
-
-      IF (IDERIV.GT.0) THEN
-        DO J = 1,NPARM
-        WRITE (8,3004) (DRESPOUT(I,J),I=1,NTOUT)
-        ENDDO
-      ENDIF
-
- 3004 FORMAT (128(2X,1PE11.4))
-C========================================================================
-
- 1010 FORMAT ( 2(2X,1PE11.4))
- 1011 FORMAT (35(2X,1PE11.4))
 
       RETURN
       END

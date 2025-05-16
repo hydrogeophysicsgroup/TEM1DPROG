@@ -1,49 +1,5 @@
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 C
-C     S U B R O U T I N E   D E R I V 1 S T
-C
-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
-      SUBROUTINE DERIV1ST (NA,XA,YA,SLOPE)
-C ----------
-      IMPLICIT REAL*8 (A-H,O-Z)
-      IMPLICIT INTEGER*4 (I-N)
-C--------------------------------------------------------------------------
-      INCLUDE 'ARRAYSDIMBL.INC'
-C ----------
-      INTEGER*4 NA
-      REAL*8 XA(NA),YA(NA)
-      REAL*8 DX(N_ARR),DY(N_ARR),SLOPE(N_ARR)
-C ----------
-
-C----------------------------------------------------------------------------
-C --- FIND X- AND Y-DIFFERENCES AND SLOPES
-C----------------------------------------------------------------------------
-      DO I = 1,NA-1
-        DX(I) = XA(I+1)-XA(I)
-        DY(I) = YA(I+1)-YA(I)
-      ENDDO      
-
-      DO I = 2,NA-1
-        SLOPE(I) = (YA(I+1)-YA(I-1))/(XA(I+1)-XA(I-1))
-      ENDDO
-      
-      SLOPE(1) = DY(1)/DX(1)
-      SLOPE(NA) = DY(NA-1)/DX(NA-1)
-
-C----------------------------------------------------------------------------
-C --- Improvement on the slope at the end points.
-C --- The slope is now the slope of the 2nd degree polynomial
-C --- determined by the points [XA(1),YA(1)],[XA(2),YA(2)],
-C --- and the slope at XA(2) = SLOPE(2),
-C --- and similarly at the right end point.
-C----------------------------------------------------------------------------
-      SLOPE(1)  = 2.D0*SLOPE(1)-SLOPE(2)
-      SLOPE(NA) = 2.D0*SLOPE(NA)-SLOPE(NA-1)
-
-      RETURN
-      END
-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
-C
 C     S U B R O U T I N E   I N T E R P 1 D
 C
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
@@ -605,6 +561,138 @@ C ----------
 
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 C
+C     R E A L * 8   F U N C T I O N   E R F C
+C
+C   REAL*8 FUNCTION ERFC calculates the real complementary error
+C   function using a continued fraction formula for the argument
+C   greater than 1 and using the formula ERFC = 1-ERF for
+C   arguments smaller than 1.
+C
+C   Programmed after Abramowitz & Stegun:
+C   Handbook of Mathematical Functions, formula 7.1.14, using the
+C   modified Lenz's method from Numerical Recipes in FORTRAN 2nd edition,
+C   page 165, formulas 5.2.8 to 5.2.10.
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      REAL*8 FUNCTION ERFC(XX)
+C ----------
+      IMPLICIT REAL*8 (A-H,O-Z)  
+      IMPLICIT INTEGER*4 (I-N)
+C ----------
+      REAL*8 X, ERF, EXPC
+      EXTERNAL ERF, EXPC
+C ----------
+      REAL*8 SQPI,XLIM,TINY,EPS
+      DATA SQPI,XLIM / 0.5641895835477563D0, 2.D0/
+      DATA TINY,EPS  /1.D-50, 1.D-12/
+C ----------
+
+      X = ABS(XX)
+
+      IF (X .LT. XLIM) THEN
+        ERFC = 1.D0 - ERF(X)
+      ELSEIF (X .GT. 10.D0) THEN
+        ERFC = 0.D0
+      ELSE
+
+      F = TINY
+      CO = F
+      DO = 0.D0
+      A = 1.D0
+
+      DN = X+A*DO
+      IF (DN.EQ.0.D0) DN = TINY
+      CN = X+A/CO
+      IF (CN.EQ.0.D0) CN = TINY
+      DN = 1.D0/DN
+      DEL = CN*DN
+      F = F*DEL
+      D0 = DN
+      C0 = CN
+
+      A = 0.D0
+      DO I = 1,300
+      A = A + 0.5D0
+      DN = X + A*D0
+      IF (DN.EQ.0.D0) DN = TINY
+      CN = X + A/C0
+      IF (CN.EQ.0.D0) CN = TINY
+      DN = 1.D0/DN
+      DEL = CN*DN
+      F = F*DEL
+      IF (ABS(DEL-1.D0).LT.EPS) GOTO 99
+      D0 = DN
+      C0 = CN
+      ENDDO
+
+C.................................................................
+      WRITE (*,1001) X
+ 1001 FORMAT (' More than 300 iterations in ERFC: argument ',
+     #          1PE12.5,' too small')
+C.................................................................
+
+   99 ERFC = F*SQPI*EXPC(-X*X)
+
+      ENDIF
+
+      IF (XX.LT.0.D0) ERFC = 2.D0 - ERFC
+
+      RETURN
+      END
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C     R E A L * 8   F U N C T I O N   E R F
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C   REAL*8 FUNCTION ERF cumputes the real error function using
+C   a power series for arguments smaller than 1 and the
+C   expression ERF = (1 - ERFC) for arguments greater than 1.
+C
+C   Programmed after Abramowitz & Stegun:
+C   Handbook of Mathematical Functions, formula 7.1.6.
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      REAL*8 FUNCTION ERF(X)
+C ----------
+      IMPLICIT REAL*8 (A-H,O-Z)  
+      IMPLICIT INTEGER*4 (I-N)
+C ----------
+      REAL*8 X,ERFC, EXPC
+      EXTERNAL ERFC, EXPC
+C ----------
+      REAL*8 SQPI,YLIM,EPS
+      DATA SQPI,YLIM,EPS /0.5641895835477563D0, 2.D0, 1.D-12/
+C ----------
+
+      Y = ABS(X)
+      Y2 = Y*Y
+
+      IF (Y.EQ.0.D0) THEN
+        ERF = 0.D0
+      ELSEIF (Y.LE.YLIM) THEN
+
+      S = Y
+      SDEL = S
+      I = 0
+   10 I = I+1
+      SDEL = SDEL*Y2*2.D0 / (2*I+1)
+      S = S+SDEL
+      C = ABS(SDEL/S)
+      IF (C.GT.EPS) GOTO 10
+      ERF = S*2.0*SQPI*EXPC(-Y2)
+
+      ELSE
+        ERF = 1.D0 - ERFC(Y)
+      ENDIF
+
+      IF (X.LT.0.D0) ERF = -ERF
+
+      RETURN
+      END
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
 C     R E A L * 8   F U N C T I O N   D I S T M I N
 C
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
@@ -649,6 +737,51 @@ C----------------------------------------------------------
       DISTMIN = SQRT( D1*D1 + D2*D2 )
 
       ENDIF
+
+      RETURN
+      END
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C      F U N C T I O N    S T I M E R
+C
+C     Function STIMER returns the monitor time value in seconds.
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      REAL*8 FUNCTION STIMER(DUMMY)
+C ----------
+      INTEGER*2 IH,IM,IS,IS100
+C ----------
+
+      CALL GETTIM(IH,IM,IS,IS100)
+      STIMER=IH*3600.D0+IM*60.D0+IS+IS100/100.D0
+
+      RETURN
+      END
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C      S U B R O U T I N E    N U T I D
+C
+C     Function NUTID returns the monitor date and time.
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      SUBROUTINE NUTID(ST)
+C ----------
+      CHARACTER*20 ST
+C ----------
+      INTEGER*2 IH,IM,IS,IS100,IY,IMON,IDAY
+C ----------
+
+      ST='                    '
+
+      CALL GETTIM(IH,IM,IS,IS100)
+      CALL GETDAT(IY,IMON,IDAY)
+      WRITE (ST(1:19),1001) IDAY,IMON,IY,IH,IM,IS
+ 1001 FORMAT(I2,'.',I2,'.',I4,'/',I2,':',I2,':',I2)
+
+      DO I=1,19
+      IF (ST(I:I).EQ.' ') ST(I:I)='0'
+      ENDDO
 
       RETURN
       END
